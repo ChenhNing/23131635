@@ -1,0 +1,472 @@
+library(plspm)
+library(openxlsx)
+pls<-read.csv("plspm.csv")
+pls$sample<-as.factor(pls$sample)
+##sample<-data.frame(sample=pls[,1])
+##sample<-as.factor(sample$sample)
+##sample2<-data.frame(sample=c("S1","S2","S3","S4","RF1","RF2","RF3","A1","A2","A3"))
+##sample2$sample<-as.factor(sample2$sample)
+
+pls2<-pls
+pls2<-scale(pls2[2:46],scale = TRUE)
+sample<-data.frame(sample=pls[,1])
+pls2<-cbind(sample,pls2)
+
+pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2:7),
+                 叶片碳化学结构=c(9,11),
+                 土壤化学性质=c(13:21),
+                 土壤碳化学结构=c(23,25),
+                 微生物群落结构=c(27:33),
+                 微生物群落多样性=c(34,36),
+                 碳代谢功能=c(38:40))
+植被类型<-c(0,0,0,0,0,0,0,0)
+叶片化学性质<-c(1,0,0,0,0,0,0,0)
+叶片碳化学结构<-c(1,0,0,0,0,0,0,0)
+土壤化学性质<-c(0,1,1,0,0,0,0,0)
+土壤碳化学结构<-c(0,1,1,1,0,0,0,0)
+微生物群落结构<-c(0,1,1,1,1,0,0,0)
+微生物群落多样性<-c(0,1,1,1,1,1,0,0)
+碳代谢功能<-c(0,1,1,1,1,1,1,0)
+
+
+pls_path4<-rbind(植被类型,叶片化学性质,叶片碳化学结构,土壤化学性质,土壤碳化学结构,微生物群落结构,微生物群落多样性,碳代谢功能)
+colnames(pls_path4)<-row.names(pls_path4)
+pls_modes4<-rep("A",8)
+pls_analysis4<-plspm(pls2,pls_path4,pls_block4,modes = pls_modes4)
+dev.new()
+innerplot(pls_analysis4,colpos = "red",colneg = "blue",show.values = TRUE,lcol = "black",box.lwd = 2)
+summary(pls_analysis4)
+pls_analysis4$path_coefs   ##查看路径系数
+pls_analysis4$inner_model
+pls_analysis4$gof
+pls_analysis4$effects
+pls_analysis4$outer_model
+outerplot(pls_analysis4, what = 'loadings', arr.width = 0.1, colpos = 'red', colneg = 'blue', show.values = TRUE, lcol = 'gray')
+outerplot(pls_analysis4, what = 'weights', arr.width = 0.1, colpos = 'red', colneg = 'blue', show.values = TRUE, lcol = 'gray')
+pls_analysis4$scores
+
+
+library(openxlsx)
+library(vegan)
+library(ggplot2)
+
+otu<-read.csv("10样地细菌门.csv",row.names = 1)
+otu<-otu[,-(1:2)]
+otu1<-otu
+otu1[otu1>0]<-1
+otu<-otu[which(rowSums(otu1)>10),] ##细菌15
+otu<-t(otu)
+otu<-data.frame(otu)
+View(otu)
+sample<-read.csv("10个samples.csv",row.names = 1)
+View(sample)
+
+bray_dist<-vegdist(otu,method = "bray")
+nmds<-metaMDS(otu,distance = "bray",k=2)    ###nmds作图
+stress<-nmds$stress                         ###计算应力值，最好＜0.2
+species<-data.frame(nmds$species)
+point<-data.frame(nmds$points)
+point$class<-sample$class      ###将样地分类为A,S,RF三种
+(nmds.fig<-ggplot()+
+    geom_vline(xintercept = 0, color = 'grey20', size = 0.5,linetype="dashed") +
+    geom_hline(yintercept = 0, color = 'grey20', size = 0.5,linetype="dashed")+
+    theme_bw()+theme(panel.grid.major=element_line(color=NA),panel.grid.minor=element_blank())+
+    geom_point(data=point,aes(x=MDS1,y=MDS2,colour=class),size=3.5)+
+    scale_color_manual(values = c("darkgoldenrod1","darkolivegreen2","deepskyblue2"),limits=c("A","S","RF")))
+
+## 门水平
+otu<-read.csv("10样地细菌门.csv",row.names = 1)
+otu<-t(otu)
+otu<-data.frame(otu)
+sample<-data.frame(sample=c(rep("A",3),rep("S",4),rep("RF",3)))
+row.names(sample)<-row.names(otu)
+View(sample)
+
+bray_dist<-vegdist(otu,method = "bray")
+nmds<-metaMDS(otu,distance = "bray",k=2)    ###nmds作图
+stress<-nmds$stress                         ###计算应力值，最好＜0.2
+species<-data.frame(nmds$species)
+point<-data.frame(nmds$points)
+point$class<-sample$sample      ###将样地分类为A,S,RF三种
+(nmds.fig<-ggplot()+
+    geom_vline(xintercept = 0, color = 'grey20', size = 0.5,linetype="dashed") +
+    geom_hline(yintercept = 0, color = 'grey20', size = 0.5,linetype="dashed")+
+    theme_bw()+theme(panel.grid.major=element_line(color=NA),panel.grid.minor=element_blank())+
+    geom_point(data=point,aes(x=MDS1,y=MDS2,colour=class),size=3.5)+
+    scale_color_manual(values = c("darkgoldenrod1","darkolivegreen2","deepskyblue2"),limits=c("A","S","RF")))
+
+
+
+## 计算门水平PCA坐标
+library(vegan)
+library(FactoMineR)
+library(factoextra)
+phy1<-read.csv("细菌和真菌1%门.csv",row.names = 1)
+pca<-PCA(phy1,ncp = 2,graph = TRUE)
+summary(pca)
+get_pca_ind(pca)
+coord<-get_pca_ind(pca)$coord
+write.table(coord,"细菌和真菌1%PCA坐标.csv",row.names = TRUE,col.names = TRUE,sep = ",")
+
+diver<-read.csv("细菌真菌多样性.csv",row.names = 1)
+pca2<-PCA(diver,ncp = 2,graph = TRUE)
+summary(pca2)
+get_pca_ind(pca2)
+coord2<-get_pca_ind(pca2)$coord
+write.table(coord2,"细菌真菌多样性PCA坐标.csv",row.names = TRUE,col.names = TRUE,sep = ",")
+
+
+ 
+## 计算门水平NMDS坐标
+library(vegan)
+otu<-read.csv("10样地真菌门.csv",row.names = 1)
+otu1<-otu
+otu1[otu1>0]<-1
+otu<-otu[which(rowSums(otu1)>6.5),] ##细菌15
+otu<-t(otu)
+otu<-data.frame(otu)
+View(otu)
+sample<-read.csv("10个samples.csv",row.names = 1)
+View(sample)
+
+bray_dist<-vegdist(otu,method = "bray")
+nmds<-metaMDS(otu,distance = "bray",k=2)    ###nmds作图
+stress<-nmds$stress                         ###计算应力值，最好＜0.2
+species<-data.frame(nmds$species)
+point<-data.frame(nmds$points)
+point$class<-sample$class      ###将样地分类为A,S,RF三种
+(nmds.fig<-ggplot()+
+    geom_vline(xintercept = 0, color = 'grey20', size = 0.5,linetype="dashed") +
+    geom_hline(yintercept = 0, color = 'grey20', size = 0.5,linetype="dashed")+
+    theme_bw()+theme(panel.grid.major=element_line(color=NA),panel.grid.minor=element_blank())+
+    geom_point(data=point,aes(x=MDS1,y=MDS2,colour=class),size=3.5)+
+    scale_color_manual(values = c("darkgoldenrod1","darkolivegreen2","deepskyblue2"),limits=c("A","RF","S")))
+write.table(point,"10样地真菌属NMDS坐标.csv",row.names = TRUE,col.names = TRUE,sep = ",")
+## 计算属水平NMDS坐标
+library(vegan)
+library(FactoMineR)
+library(factoextra)
+otu<-read.csv("10样地真菌属.csv",row.names = 1)
+otu<-otu[,-(1:2)]
+otu1<-otu
+otu1[otu1>0]<-1
+otu<-otu[which(rowSums(otu1)>10),] ##细菌15
+otu<-t(otu)
+otu<-data.frame(otu)
+View(otu)
+sample<-read.csv("10个samples.csv",row.names = 1)
+View(sample)
+
+bray_dist<-vegdist(otu,method = "bray")
+nmds<-metaMDS(otu,distance = "bray",k=2)    ###nmds作图
+stress<-nmds$stress                         ###计算应力值，最好＜0.2
+species<-data.frame(nmds$species)
+point<-data.frame(nmds$points)
+point$class<-sample$class      ###将样地分类为A,S,RF三种
+(nmds.fig<-ggplot()+
+    geom_vline(xintercept = 0, color = 'grey20', size = 0.5,linetype="dashed") +
+    geom_hline(yintercept = 0, color = 'grey20', size = 0.5,linetype="dashed")+
+    theme_bw()+theme(panel.grid.major=element_line(color=NA),panel.grid.minor=element_blank())+
+    geom_point(data=point,aes(x=MDS1,y=MDS2,colour=class),size=3.5)+
+    scale_color_manual(values = c("darkgoldenrod1","darkolivegreen2","deepskyblue2"),limits=c("A","S","RF")))
+write.table(point,"10样地真菌属NMDS坐标.csv",row.names = TRUE,col.names = TRUE,sep = ",")
+
+
+library(vegan)
+library(FactoMineR)
+library(factoextra)
+otu<-read.csv("10样地细菌属.csv",row.names = 1)
+otu<-otu[,-(1:2)]
+otu1<-otu
+otu1[otu1>0]<-1
+otu<-otu[which(rowSums(otu1)>15),] ##细菌15
+otu<-t(otu)
+otu<-data.frame(otu)
+View(otu)
+sample<-read.csv("10个samples.csv",row.names = 1)
+View(sample)
+
+bray_dist<-vegdist(otu,method = "bray")
+nmds<-metaMDS(otu,distance = "bray",k=2)    ###nmds作图
+stress<-nmds$stress                         ###计算应力值，最好＜0.2
+species<-data.frame(nmds$species)
+point<-data.frame(nmds$points)
+point$class<-sample$class      ###将样地分类为A,S,RF三种
+(nmds.fig<-ggplot()+
+    geom_vline(xintercept = 0, color = 'grey20', size = 0.5,linetype="dashed") +
+    geom_hline(yintercept = 0, color = 'grey20', size = 0.5,linetype="dashed")+
+    theme_bw()+theme(panel.grid.major=element_line(color=NA),panel.grid.minor=element_blank())+
+    geom_point(data=point,aes(x=MDS1,y=MDS2,colour=class),size=3.5)+
+    scale_color_manual(values = c("darkgoldenrod1","darkolivegreen2","deepskyblue2"),limits=c("A","S","RF")))
+write.table(point,"10样地细菌属NMDS坐标.csv",row.names = TRUE,col.names = TRUE,sep = ",")
+
+###
+library(plspm)
+library(openxlsx)
+pls<-read.csv("plspm.csv")
+pls$sample<-as.factor(pls$sample)
+##sample<-data.frame(sample=pls[,1])
+##sample<-as.factor(sample$sample)
+##sample2<-data.frame(sample=c("S1","S2","S3","S4","RF1","RF2","RF3","A1","A2","A3"))
+##sample2$sample<-as.factor(sample2$sample)
+
+pls2<-pls
+pls2<-scale(pls2[2:48],scale = TRUE)
+sample<-data.frame(sample=pls[,1])
+pls2<-cbind(sample,pls2)
+
+# pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2,4,6,7),
+                 叶片碳化学结构=c(9,11),
+                 土壤化学性质=c(13:16,18:21),
+                 土壤碳化学结构=c(23,25),
+                 微生物群落结构=c(27,47),
+                 微生物群落多样性=c(48),
+                 碳代谢功能=c(38:40))
+
+pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2:7),
+                 叶片碳化学结构=c(8:12),
+                 土壤化学性质=c(13:21),
+                 土壤碳化学结构=c(22:26),
+                 微生物群落结构=c(27,47),
+                 微生物群落多样性=c(48),
+                 碳代谢功能=c(38:40))
+
+
+植被类型<-c(0,0,0,0,0,0,0,0)
+叶片化学性质<-c(1,0,0,0,0,0,0,0)
+叶片碳化学结构<-c(1,0,0,0,0,0,0,0)
+土壤化学性质<-c(0,1,1,0,0,0,0,0)
+土壤碳化学结构<-c(0,1,1,1,0,0,0,0)
+微生物群落结构<-c(0,1,1,1,1,0,0,0)
+微生物群落多样性<-c(0,1,1,1,1,1,0,0)
+碳代谢功能<-c(0,1,1,1,1,1,1,0)
+
+
+pls_path4<-rbind(植被类型,叶片化学性质,叶片碳化学结构,土壤化学性质,土壤碳化学结构,微生物群落结构,微生物群落多样性,碳代谢功能)
+colnames(pls_path4)<-row.names(pls_path4)
+pls_modes4<-rep("A",8)
+pls_analysis4<-plspm(pls2,pls_path4,pls_block4,modes = pls_modes4)
+dev.new()
+innerplot(pls_analysis4,colpos = "red",colneg = "blue",show.values = TRUE,lcol = "black",box.lwd = 2)
+summary(pls_analysis4)
+pls_analysis4$path_coefs   ##查看路径系数
+pls_analysis4$inner_model
+pls_analysis4$gof
+pls_analysis4$effects
+pls_analysis4$outer_model
+outerplot(pls_analysis4, what = 'loadings', arr.width = 0.1, colpos = 'red', colneg = 'blue', show.values = TRUE, lcol = 'gray')
+outerplot(pls_analysis4, what = 'weights', arr.width = 0.1, colpos = 'red', colneg = 'blue', show.values = TRUE, lcol = 'gray')
+pls_analysis4$scores
+
+
+
+
+## 引入微生物网络属性
+
+library(plspm)
+library(openxlsx)
+pls<-read.csv("plspm.csv")
+pls$sample<-as.factor(pls$sample)
+##sample<-data.frame(sample=pls[,1])
+##sample<-as.factor(sample$sample)
+##sample2<-data.frame(sample=c("S1","S2","S3","S4","RF1","RF2","RF3","A1","A2","A3"))
+##sample2$sample<-as.factor(sample2$sample)
+
+pls2<-pls
+## pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2:7),
+                 叶片碳化学结构=c(8:12),
+                 土壤化学性质=c(13:21),
+                 土壤碳化学结构=c(22:26),
+                 微生物群落特征=c(27,47,48,65,66),
+                 微生物互作网络=c(49:64),
+                 碳代谢功能=c(38:40))
+植被类型<-c(0,0,0,0,0,0,0,0)
+叶片化学性质<-c(1,0,0,0,0,0,0,0)
+叶片碳化学结构<-c(1,0,0,0,0,0,0,0)
+土壤化学性质<-c(1,1,1,0,0,0,0,0)
+土壤碳化学结构<-c(1,1,1,1,0,0,0,0)
+微生物群落特征<-c(0,1,1,1,1,0,0,0)
+微生物互作网络<-c(0,1,1,1,1,1,0,0)
+碳代谢功能<-c(0,1,1,1,1,1,1,0)
+
+
+#pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2,3,4,6,7),
+                 叶片碳化学结构=c(9:12),
+                 土壤化学性质=c(13:16,18:21),
+                 土壤碳化学结构=c(22:26),
+                 微生物群落特征=c(27,28,33,35,37,65,66),
+                 微生物互作网络=c(49:64),
+                 碳代谢功能=c(38:40))
+
+
+pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2,3,4,6,7),
+                 叶片碳化学结构=c(9:12),
+                 土壤化学性质=c(13:16,18:21),
+                 土壤碳化学结构=c(22:26),
+                 微生物群落特征=c(27,28,33,35,37,65,66),
+                 微生物互作网络=c(49:64),
+                 碳代谢功能=c(38:40))
+
+
+pls_path4<-rbind(植被类型,叶片化学性质,叶片碳化学结构,土壤化学性质,土壤碳化学结构,微生物群落特征,微生物互作网络,碳代谢功能)
+colnames(pls_path4)<-row.names(pls_path4)
+pls_modes4<-rep("A",8)
+pls_analysis4<-plspm(pls2,pls_path4,pls_block4,modes = pls_modes4)
+dev.new()
+innerplot(pls_analysis4,colpos = "red",colneg = "blue",show.values = TRUE,lcol = "black",box.lwd = 2)
+summary(pls_analysis4)
+pls_analysis4$path_coefs   ##查看路径系数
+pls_analysis4$inner_model
+pls_analysis4$gof
+pls_analysis4$effects
+pls_analysis4$outer_model
+outerplot(pls_analysis4, what = 'loadings', arr.width = 0.1, colpos = 'red', colneg = 'blue', show.values = TRUE, lcol = 'gray')
+outerplot(pls_analysis4, what = 'weights', arr.width = 0.1, colpos = 'red', colneg = 'blue', show.values = TRUE, lcol = 'gray')
+pls_analysis4$scores
+
+这个可以用
+## 将网络引入，并区分开多样性与结构
+library(plspm)
+library(openxlsx)
+pls<-read.csv("plspm2.csv")
+pls$sample<-as.factor(pls$sample)
+pls2<-pls
+
+植被类型<-c(0,0,0,0,0,0,0,0,0)
+叶片化学性质<-c(1,0,0,0,0,0,0,0,0)
+叶片碳化学结构<-c(1,0,0,0,0,0,0,0,0)
+土壤化学性质<-c(1,1,1,0,0,0,0,0,0)
+土壤碳化学结构<-c(1,1,1,1,0,0,0,0,0)
+微生物群落结构<-c(0,1,1,1,1,0,0,0,0)
+微生物多样性<-c(0,1,1,1,1,1,0,0,0)
+互作网络<-c(0,0,0,0,0,1,1,0,0)
+碳代谢功能<-c(0,0,0,0,0,1,1,1,0)
+
+
+## pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2:7),
+                 叶片碳化学结构=c(8:12),
+                 土壤化学性质=c(13:21),
+                 土壤碳化学结构=c(22:26),
+                 微生物群落结构=c(27:33,65,66),
+                 微生物多样性=c(34:37),
+                 互作网络=c(49:64),
+                 碳代谢功能=c(38:40))
+# 适合全部的碳源代谢
+pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2,3,4,5,6,7),
+                 叶片碳化学结构=c(8:11),
+                 土壤化学性质=c(13:21),
+                 土壤碳化学结构=c(22:25),
+                 微生物群落结构=c(27:33,65,66),
+                 微生物多样性=c(34:37),
+                 互作网络=c(49:64),
+                 碳代谢功能=c(38:40,41:46))
+
+# 适合21种的碳源代谢
+pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2,3,4,5,6,7),
+                 叶片碳化学结构=c(8:11),
+                 土壤化学性质=c(13:21),
+                 土壤碳化学结构=c(22:25),
+                 微生物群落结构=c(27:33,65,66),
+                 微生物多样性=c(34:37),
+                 互作网络=c(49:64),
+                 碳代谢功能=c(38:40,41,42,43,46))
+
+
+#细菌
+pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2,3,4,5,6,7),
+                 叶片碳化学结构=c(8:11),
+                 土壤化学性质=c(13:21),
+                 土壤碳化学结构=c(22:25),
+                 微生物群落结构=c(28:32,65),
+                 微生物多样性=c(34:35,67:68),
+                 互作网络=c(49:56),
+                 碳代谢功能=c(38:40,41:43))
+pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2,3,4,5,6,7),
+                 叶片碳化学结构=c(8:11),
+                 土壤化学性质=c(13:21),
+                 土壤碳化学结构=c(22:25),
+                 微生物群落结构=c(28:32,65),
+                 微生物多样性=c(34:35,67:68),
+                 互作网络=c(49:56),
+                 碳代谢功能=c(38:40,46))
+#真菌
+pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2,3,4,5,6,7),
+                 叶片碳化学结构=c(8:11),
+                 土壤化学性质=c(13:21),
+                 土壤碳化学结构=c(22:25),
+                 微生物群落结构=c(33,66),
+                 微生物多样性=c(36:37,69:70),
+                 互作网络=c(49:56),
+                 碳代谢功能=c(38:40,41:43))
+
+pls_block4<-list(植被类型=c(1),
+                 叶片化学性质=c(2,3,4,5,6,7),
+                 叶片碳化学结构=c(8:11),
+                 土壤化学性质=c(13:21),
+                 土壤碳化学结构=c(22:25),
+                 微生物群落结构=c(33,66),
+                 微生物多样性=c(36:37,69:70),
+                 互作网络=c(49:56),
+                 碳代谢功能=c(38:40,46))
+
+
+
+
+pls_path4<-rbind(植被类型,叶片化学性质,叶片碳化学结构,土壤化学性质,土壤碳化学结构,微生物群落结构,微生物多样性,互作网络,碳代谢功能)
+colnames(pls_path4)<-row.names(pls_path4)
+pls_modes4<-rep("A",9)
+pls_analysis4<-plspm(pls2,pls_path4,pls_block4,modes = pls_modes4)
+dev.new()
+innerplot(pls_analysis4,colpos = "red",colneg = "blue",show.values = TRUE,lcol = "black",box.lwd = 2)
+summary(pls_analysis4)
+pls_analysis4$path_coefs   ##查看路径系数
+pls_analysis4$inner_model
+pls_analysis4$gof
+pls_analysis4$effects
+pls_analysis4$outer_model
+outerplot(pls_analysis4, what = 'loadings', arr.width = 0.1, colpos = 'red', colneg = 'blue', show.values = TRUE, lcol = 'gray')
+outerplot(pls_analysis4, what = 'weights', arr.width = 0.1, colpos = 'red', colneg = 'blue', show.values = TRUE, lcol = 'gray')
+pls_analysis4$scores
+
+effect<-data.frame(pls_analysis4$effects)
+write.table(effect,"path effect.csv",row.names = TRUE,col.names = TRUE,sep = ",")
+
+
+#单独微生物群落
+微生物群落结构<-c(0,0,0,0)
+微生物多样性<-c(1,0,0,0)
+互作网络<-c(1,1,0,0)
+碳代谢功能<-c(1,1,1,0)
+pls_block4<-list(微生物群落结构=c(27:33,65,66),
+                 微生物多样性=c(34:37,67:70),
+                 互作网络=c(49:64),
+                 碳代谢功能=c(38:40,41,42,43,46))
+
+pls_block4<-list(微生物群落结构=c(28:32,65),
+                 微生物多样性=c(34:35),
+                 互作网络=c(49:56),
+                 碳代谢功能=c(38:40,41,42,43))
+
+pls_path4<-rbind(微生物群落结构,微生物多样性,互作网络,碳代谢功能)
+colnames(pls_path4)<-row.names(pls_path4)
+pls_modes4<-rep("A",4)
+pls_analysis4<-plspm(pls2,pls_path4,pls_block4,modes = pls_modes4)
+dev.new()
+innerplot(pls_analysis4,colpos = "red",colneg = "blue",show.values = TRUE,lcol = "black",box.lwd = 2)
+summary(pls_analysis4)
+pls_analysis4$path_coefs   ##查看路径系数
+pls_analysis4$inner_model
+pls_analysis4$gof
+pls_analysis4$effects
